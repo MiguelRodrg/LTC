@@ -18,7 +18,7 @@ limit2d = 2880  # Número máximo de datos (2 días * 1440 minutos por día)
 
 
 # Obtener la fecha de hace dos días
-two_days_ago = datetime.now() - timedelta(days=2)
+two_days_ago = datetime.now() - timedelta(hours=16)
 two_days_ago_timestamp = int(two_days_ago.timestamp() * 1000)  # Convertir a milisegundos
 
 
@@ -80,12 +80,21 @@ prices = prices_month + prices_2d
 
 # Configurar la gráfica
 fig, ax = plt.subplots(figsize=(6, 4))
-line1, = ax.plot(dates, prices, label='Datos Históricos', color='y')
+line1, = ax.plot(dates, prices, label='Datos Históricos', color='y', linewidth=0.5)
+scatter1 = ax.scatter(0, 0, color='red', zorder=5)  # Marcar el último punto
+annotation = ax.annotate("Texto prueba", xy=(0, 0), color='red', xytext=(4,4),
+                         fontsize=10,
+                         ha='left', va='bottom'
+                         #arrowprops=dict(arrowstyle="->", color='red')
+                         )
+                         # Inicializar la anotación (vacío al principio)
+
 
 # Etiquetas y título
 ax.set_xlabel('Fecha')
 ax.set_ylabel('Precio (USDT)')
 ax.set_title('Precio Histórico de LTC/USDT con Datos en Tiempo Real')
+ax.grid(True)
 ax.legend()
 
 # Hacer el gráfico interactivo con cursor
@@ -119,11 +128,17 @@ def update(frame):
     line1.set_xdata(dates + realtime_dates)
     line1.set_ydata(prices + realtime_prices)
 
+    #scatter1.set_offsets([(realtime_dates[-1], realtime_prices[-1])])  # Actualiza la posición del scatter al último punto
+    # Actualizar la anotación al último punto
+    annotation.set_text(f"{realtime_prices[-1]:.2f} USDT")  # Texto con el valor actual
+    annotation.set_position((realtime_dates[-1], realtime_prices[-1]))  # Posicionar la anotación
+    annotation.xy = (realtime_dates[-1], realtime_prices[-1])  # Ubicar la anotación en el último valor
+
     # Actualizar el rango de fechas
     ax.relim()  # Recalcular límites del gráfico
     ax.autoscale_view()  # Autoescala el gráfico para que se ajuste a los nuevos datos
 
-    return line1,
+    return line1, annotation#, scatter1
 
 # Configuración de rango de visualización predeterminado (últimos 5 minutos)
 def set_default_view():
@@ -236,8 +251,6 @@ def adjust_y_limits(event):
 
         # Actualizar la vista del gráfico
         fig.canvas.draw()
-
-
 
 
 
