@@ -97,7 +97,7 @@ def set_default_view():
     ax.set_xlim(start_time, end_time)  # Ajustar el rango de fechas a los últimos 5 minutos
 
 # Función de zoom in centrado
-def zoom_in(event):
+def zoom_in_x(event):
     x_min, x_max = ax.get_xlim()
     y_min, y_max = ax.get_ylim()
 
@@ -109,14 +109,25 @@ def zoom_in(event):
     zoom_factor = 0.9  # Factor de zoom, 0.9 para hacer zoom in
     ax.set_xlim(center_x - (center_x - x_min) * zoom_factor, center_x + (x_max - center_x) * zoom_factor)
 
-    # Establecer límites de Y, si es necesario, para hacer zoom también en el eje Y
-    ax.set_ylim(center_y - (center_y - y_min) * zoom_factor, center_y + (y_max - center_y) * zoom_factor)
-
     # Actualizar la vista
     fig.canvas.draw()
 
 # Función de zoom out centrado
-def zoom_out(event):
+def zoom_out_x(event):
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+
+    # Calcular el centro actual del gráfico
+    center_x = (x_min + x_max) / 2
+
+    # Aumentar el rango del eje X (alejar la visualización)
+    zoom_factor = 1.5  # Factor de zoom, 1.1 para hacer zoom out
+    ax.set_xlim(center_x - (center_x - x_min) * zoom_factor, center_x + (x_max - center_x) * zoom_factor)
+
+    # Actualizar la vista
+    fig.canvas.draw()
+
+def zoom_in_y(event):
     x_min, x_max = ax.get_xlim()
     y_min, y_max = ax.get_ylim()
 
@@ -124,16 +135,31 @@ def zoom_out(event):
     center_x = (x_min + x_max) / 2
     center_y = (y_min + y_max) / 2
 
-    # Aumentar el rango del eje X (alejar la visualización)
-    zoom_factor = 1.1  # Factor de zoom, 1.1 para hacer zoom out
-    ax.set_xlim(center_x - (center_x - x_min) * zoom_factor, center_x + (x_max - center_x) * zoom_factor)
-
-    # Establecer límites de Y, si es necesario
+    # Reducir el rango del eje X (acercar la visualización)
+    zoom_factor = 0.9  # Factor de zoom, 0.9 para hacer zoom in
+    # Establecer límites de Y, si es necesario, para hacer zoom también en el eje Y
     ax.set_ylim(center_y - (center_y - y_min) * zoom_factor, center_y + (y_max - center_y) * zoom_factor)
 
     # Actualizar la vista
     fig.canvas.draw()
 
+# Función de zoom out centrado
+def zoom_out_y(event):
+    y_min, y_max = ax.get_ylim()
+    y_min, y_max = ax.get_ylim()
+
+    # Calcular el centro actual del gráfico
+    center_x = (x_min + x_max) / 2
+    center_y = (y_min + y_max) / 2
+
+
+    # Aumentar el rango del eje X (alejar la visualización)
+    zoom_factor = 1.1  # Factor de zoom, 1.1 para hacer zoom out
+    # Establecer límites de Y, si es necesario
+    ax.set_ylim(center_y - (center_y - y_min) * zoom_factor, center_y + (y_max - center_y) * zoom_factor)
+
+    # Actualizar la vista
+    fig.canvas.draw()
 
 # Función de animación para actualizar en tiempo real
 ani = FuncAnimation(fig, update, blit=True, interval=1000, cache_frame_data=False)  # Desactivar la caché
@@ -142,14 +168,20 @@ ani = FuncAnimation(fig, update, blit=True, interval=1000, cache_frame_data=Fals
 set_default_view()
 
 # Crear botones de zoom in y zoom out
-ax_zoom_in = plt.axes([0.85, 0.05, 0.1, 0.075])  # Definir el área del botón
-ax_zoom_out = plt.axes([0.85, 0.15, 0.1, 0.075])  # Definir el área del botón
+ax_zoom_in_x = plt.axes([0.74, 0.10, 0.075, 0.075])  # Definir el área del botón
+ax_zoom_out_x = plt.axes([0.9, 0.10, 0.075, 0.075])  # Definir el área del botón
+ax_zoom_in_y = plt.axes([0.82, 0.15, 0.075, 0.075])  # Definir el área del botón
+ax_zoom_out_y = plt.axes([0.82, 0.05, 0.075, 0.075])  # Definir el área del botón
 
-button_zoom_in = Button(ax_zoom_in, 'Zoom In')
-button_zoom_out = Button(ax_zoom_out, 'Zoom Out')
+button_zoom_in_x = Button(ax_zoom_in_x, 'Z+ x')
+button_zoom_out_x = Button(ax_zoom_out_x, 'Z- x')
+button_zoom_in_y = Button(ax_zoom_in_y, 'Z+ y')
+button_zoom_out_y = Button(ax_zoom_out_y, 'Z- y')
 
-button_zoom_in.on_clicked(zoom_in)  # Asignar la acción de hacer zoom in
-button_zoom_out.on_clicked(zoom_out)  # Asignar la acción de hacer zoom out
+button_zoom_in_x.on_clicked(zoom_in_x)  # Asignar la acción de hacer zoom in
+button_zoom_out_x.on_clicked(zoom_out_x)  # Asignar la acción de hacer zoom out
+button_zoom_in_y.on_clicked(zoom_in_y)  # Asignar la acción de hacer zoom in
+button_zoom_out_y.on_clicked(zoom_out_y)  # Asignar la acción de hacer zoom out
 
 # Mostrar el gráfico
 plt.show()
