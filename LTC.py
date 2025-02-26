@@ -84,7 +84,7 @@ def update(frame):
     return line1,
 
 # Función de animación para actualizar en tiempo real
-ani = FuncAnimation(fig, update, blit=True, interval=1000)  # Actualiza cada segundo (1000 ms)
+ani = FuncAnimation(fig, update, blit=True, interval=1000, cache_frame_data=False)  # Desactivar la caché
 
 # Mostrar el gráfico
 plt.show()
