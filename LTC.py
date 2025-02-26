@@ -1,7 +1,6 @@
 import requests
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Cursor
 
@@ -28,8 +27,8 @@ def get_historical_data():
     timestamps = [item[0] for item in data]
     close_prices = [float(item[4]) for item in data]
 
-    # Convertimos timestamps a fechas legibles
-    dates = [pd.to_datetime(timestamp, unit='ms') for timestamp in timestamps]
+    # Convertimos timestamps a fechas UTC y luego a la hora local
+    dates = [pd.to_datetime(timestamp, unit='ms').tz_localize('UTC').tz_convert('America/New_York') for timestamp in timestamps]
 
     return dates, close_prices
 
@@ -61,7 +60,7 @@ def get_realtime_data():
     response = requests.get(url_realtime)
     data = response.json()
     price = float(data['price'])
-    timestamp = pd.to_datetime('now')  # Timestamp actual
+    timestamp = pd.to_datetime('now', utc=True).tz_convert('America/New_York')  # Convertir a hora local
     return timestamp, price
 
 # Función para actualizar el gráfico con datos en tiempo real
