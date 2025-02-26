@@ -1,58 +1,90 @@
 import requests
 import matplotlib.pyplot as plt
-import time
+import pandas as pd
+import numpy as np
+from matplotlib.animation import FuncAnimation
+from matplotlib.widgets import Cursor
 
-# URL de la API de Binance para obtener el precio de LTC/USDT
-url = "https://api.binance.com/api/v3/ticker/price?symbol=LTCUSDT"
+# URL de la API de Binance para obtener datos históricos de LTC/USDT
+url_historical = "https://api.binance.com/api/v3/klines"
+url_realtime = "https://api.binance.com/api/v3/ticker/price?symbol=LTCUSDT"
 
-# Listas para almacenar los valores de tiempo y precio
-timestamps = []
-prices = []
+# Parámetros para la consulta de datos históricos (último mes)
+symbol = "LTCUSDT"
+interval = "1h"  # Intervalo de 1 hora para los datos históricos
+limit = 1000  # Número máximo de datos que queremos recuperar (ajustar según el intervalo)
+
+# Función para obtener los datos históricos de Binance
+def get_historical_data():
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
+    response = requests.get(url_historical, params=params)
+    data = response.json()
+
+    # Extraemos las fechas y precios
+    timestamps = [item[0] for item in data]
+    close_prices = [float(item[4]) for item in data]
+
+    # Convertimos timestamps a fechas legibles
+    dates = [pd.to_datetime(timestamp, unit='ms') for timestamp in timestamps]
+
+    return dates, close_prices
+
+# Obtener los datos históricos
+dates, prices = get_historical_data()
 
 # Configurar la gráfica
-plt.ion()  # Activar el modo interactivo para actualizaciones en tiempo real
-fig, ax = plt.subplots()
-line, = ax.plot(timestamps, prices, label='Precio LTC/USDT', color='b')
-ax.set_xlabel('Tiempo (segundos)')
+fig, ax = plt.subplots(figsize=(10, 6))
+line1, = ax.plot(dates, prices, label='Datos Históricos', color='b')
+
+# Etiquetas y título
+ax.set_xlabel('Fecha')
 ax.set_ylabel('Precio (USDT)')
-ax.set_title('Precio en tiempo real de LTC/USDT')
+ax.set_title('Precio Histórico de LTC/USDT con Datos en Tiempo Real')
 ax.legend()
 
-# Variable para el contador de tiempo
-start_time = time.time()
+# Hacer el gráfico interactivo con cursor
+cursor = Cursor(ax, useblit=True, color='red', linewidth=1)
 
-# Bucle para obtener los datos y actualizar la gráfica en tiempo real
-while True:
-    try:
-        # Obtener el precio de LTC/USDT desde la API de Binance
-        response = requests.get(url)
-        data = response.json()
+# Formato de fecha
+fig.autofmt_xdate()
 
-        # Extraer el precio actual y el tiempo transcurrido
-        price = float(data['price'])
-        elapsed_time = time.time() - start_time
+# Variables para los datos en tiempo real
+realtime_dates = []
+realtime_prices = []
 
-        # Agregar los nuevos datos a las listas
-        timestamps.append(elapsed_time)
-        prices.append(price)
+# Función para obtener datos en tiempo real
+def get_realtime_data():
+    response = requests.get(url_realtime)
+    data = response.json()
+    price = float(data['price'])
+    timestamp = pd.to_datetime('now')  # Timestamp actual
+    return timestamp, price
 
-        # Limitar el número de puntos en la gráfica para no sobrecargarla
-        if len(timestamps) > 50:
-            timestamps.pop(0)
-            prices.pop(0)
+# Función para actualizar el gráfico con datos en tiempo real
+def update(frame):
+    # Obtener el nuevo precio en tiempo real
+    timestamp, price = get_realtime_data()
 
-        # Actualizar la gráfica
-        line.set_xdata(timestamps)
-        line.set_ydata(prices)
+    # Agregar los nuevos datos al gráfico
+    realtime_dates.append(timestamp)
+    realtime_prices.append(price)
 
-        # Ajustar los límites de los ejes
-        ax.set_xlim(min(timestamps), max(timestamps) + 1)
-        ax.set_ylim(min(prices) - 1, max(prices) + 1)
+    # Actualizar los datos en el gráfico (combinamos históricos y en tiempo real)
+    line1.set_xdata(dates + realtime_dates)
+    line1.set_ydata(prices + realtime_prices)
 
-        # Redibujar la gráfica
-        plt.draw()
-        plt.pause(1)  # Pausa de 1 segundo antes de la siguiente actualización
+    # Actualizar el rango de fechas
+    ax.relim()  # Recalcular límites del gráfico
+    ax.autoscale_view()  # Autoescala el gráfico para que se ajuste a los nuevos datos
 
-    except Exception as e:
-        print(f"Error al obtener los datos: {e}")
-        time.sleep(1)
+    return line1,
+
+# Función de animación para actualizar en tiempo real
+ani = FuncAnimation(fig, update, blit=True, interval=1000)  # Actualiza cada segundo (1000 ms)
+
+# Mostrar el gráfico
+plt.show()
