@@ -9,17 +9,70 @@ from datetime import datetime, timedelta
 url_historical = "https://api.binance.com/api/v3/klines"
 url_realtime = "https://api.binance.com/api/v3/ticker/price?symbol=LTCUSDT"
 
+# Parámetros iniciales del proyecto
+
 # Parámetros para la consulta de datos históricos (último mes)
 symbol = "LTCUSDT"
 interval_historical = "1h"  # Intervalo de 1 hora para los datos históricos
-interval_2d = "1m"
-limit = 1000  # Número máximo de datos que queremos recuperar
-limit2d = 2880  # Número máximo de datos (2 días * 1440 minutos por día)
+interval_2d = "1m"  # Intervalo para los datos en tiempo real (últimos 2 días)
+limit = 1000  # Número máximo de datos que se quieren recuperar
+limit2d = 2880  # Número máximo de datos de 2 días (2 * 1440 minutos por día)
 
+# Variables de rango de fechas predeterminado (solo con valores relativos)
+default_start_time_offset = pd.Timedelta(minutes=45)  # Desfase de 45 minutos para la fecha de inicio
+default_end_time_offset = pd.Timedelta(minutes=5)  # Desfase de 5 minutos para la fecha de fin
+# Posibles valores para 'default_start_time_offset' y 'default_end_time_offset':
+# Se pueden usar unidades como: 
+# - "seconds" (segundos)
+# - "minutes" (minutos)
+# - "hours" (horas)
+# - "days" (días)
+# - "weeks" (semanas)
+# También se pueden asignar valores como: 
+# - "5 minutes" -> pd.Timedelta(minutes=5)
+# - "1 hour" -> pd.Timedelta(hours=1)
+# - "2 days" -> pd.Timedelta(days=2)
+# - "1 week" -> pd.Timedelta(weeks=1)
+
+# Bandera de error de validación
+validation_error_flag = False  # Bandera que indica si hubo un error de validación en las fechas
 
 # Obtener la fecha de hace dos días
 two_days_ago = datetime.now() - timedelta(hours=16)
 two_days_ago_timestamp = int(two_days_ago.timestamp() * 1000)  # Convertir a milisegundos
+
+# Función para validar el rango de fechas
+def validate_date_range(start_date_offset, end_date_offset):
+    global validation_error_flag
+
+    try:
+        # Calcular las fechas reales a partir de los desfases
+        default_end_time = pd.to_datetime('now', utc=True).tz_convert('America/New_York') + end_date_offset
+        default_start_time = default_end_time - start_date_offset
+
+        # Intentar convertir las fechas a datetime
+        start_date_parsed = pd.to_datetime(default_start_time, errors='raise')
+        end_date_parsed = pd.to_datetime(default_end_time, errors='raise')
+
+        # Verificar que la fecha de inicio sea anterior a la fecha final
+        if start_date_parsed >= end_date_parsed:
+            raise ValueError("La fecha de inicio no puede ser mayor o igual a la fecha final.")
+
+        # Si las fechas son válidas, devolverlas
+        validation_error_flag = False
+        return start_date_parsed, end_date_parsed
+
+    except Exception as e:
+        # Si hay un error en la validación, asignar valores por defecto
+        print(f"Error de validación de fechas: {e}. Usando valores por defecto.")
+        validation_error_flag = True
+
+        # Calcular fechas por defecto: 45 minutos antes y 5 minutos después de la hora actual
+        default_end_time = pd.to_datetime('now', utc=True).tz_convert('America/New_York') + pd.Timedelta(minutes=5)
+        default_start_time = default_end_time - pd.Timedelta(minutes=45)
+
+        return default_start_time, default_end_time
+
 
 
 # Función para obtener los datos históricos de Binance (último mes)
@@ -115,6 +168,26 @@ def get_realtime_data():
     timestamp = pd.to_datetime('now', utc=True).tz_convert('America/New_York')  # Convertir a hora local
     return timestamp, price
 
+# Función para ajustar los límites de Y según un rango de fechas
+def adjust_y_limits_for_range(start_date, end_date):
+    # Filtrar las fechas y precios dentro del rango proporcionado
+    visible_dates = [date for date in dates + realtime_dates if start_date <= date <= end_date]
+    visible_prices = [price for date, price in zip(dates + realtime_dates, prices + realtime_prices) if date in visible_dates]
+
+    # Si hay precios visibles, ajustamos los límites de Y
+    if visible_prices:
+        margin = 0.05  # Margen para evitar que los precios toquen el borde del gráfico
+        new_y_min = min(visible_prices)
+        new_y_max = max(visible_prices)
+
+        new_y_min = new_y_min - (new_y_max - new_y_min) * margin
+        new_y_max = new_y_max + (new_y_max - new_y_min) * margin
+
+        return new_y_min, new_y_max
+    else:
+        # Si no hay precios visibles, no cambiar los límites
+        return None, None
+
 # Función para actualizar el gráfico con datos en tiempo real
 def update(frame):
     # Obtener el nuevo precio en tiempo real
@@ -134,17 +207,39 @@ def update(frame):
     annotation.set_position((realtime_dates[-1], realtime_prices[-1]))  # Posicionar la anotación
     annotation.xy = (realtime_dates[-1], realtime_prices[-1])  # Ubicar la anotación en el último valor
 
+    # Verificar si el último valor está dentro del rango visible
+    x_min, x_max = ax.get_xlim()
+    # Convertir x_min y x_max a pandas.Timestamp
+    x_min = pd.to_datetime(x_min, unit='d', utc=True).tz_convert('America/New_York')  # Asignar zona horaria a x_min
+    x_max = pd.to_datetime(x_max, unit='d', utc=True).tz_convert('America/New_York')  # Asignar zona horaria a x_max
+    # Verificar si el último valor de tiempo (realtime_dates[-1]) está dentro del rango visible
+    if x_min <= realtime_dates[-1] <= x_max and len(realtime_dates)>1:
+        # Si el último dato está dentro del rango visible, desplazar los límites en x
+        # Calcular el desplazamiento en el eje x usando la diferencia entre el último y el penúltimo valor
+        shift = realtime_dates[-1] - realtime_dates[-2]
+        ax.set_xlim(x_min + shift, x_max + shift)
+    
     # Actualizar el rango de fechas
     ax.relim()  # Recalcular límites del gráfico
     ax.autoscale_view()  # Autoescala el gráfico para que se ajuste a los nuevos datos
 
     return line1, annotation#, scatter1
 
-# Configuración de rango de visualización predeterminado (últimos 5 minutos)
+
+# Función para configurar la gráfica con el rango predeterminado de la vista
 def set_default_view():
-    end_time = pd.to_datetime('now', utc=True).tz_convert('America/New_York') + pd.Timedelta(minutes=2)
-    start_time = end_time - pd.Timedelta(minutes=45)  # Últimos 5 minutos
-    ax.set_xlim(start_time, end_time)  # Ajustar el rango de fechas a los últimos 5 minutos
+    global default_start_time_offset, default_end_time_offset, validation_error_flag
+
+    # Validar y calcular las fechas de inicio y fin
+    default_start_time, default_end_time = validate_date_range(default_start_time_offset, default_end_time_offset)
+    # Ajustar el rango de fechas en el gráfico
+    ax.set_xlim(default_start_time, default_end_time)
+    # Llamar a la función de ajuste de Y usando el rango validado
+    new_y_min, new_y_max = adjust_y_limits_for_range(default_start_time, default_end_time)    
+    # Ajustar los límites de Y si se encuentran valores válidos
+    if new_y_min is not None and new_y_max is not None:
+        ax.set_ylim(new_y_min, new_y_max)
+
 
 # Función de zoom in centrado
 def zoom_in_x(event):
@@ -214,44 +309,20 @@ def zoom_out_y(event):
 
 # Función para ajustar los valores máximos y mínimos del eje Y según los datos visibles
 def adjust_y_limits(event):
-    # Obtener el rango visible actual en el eje X (fechas) en formato de tiempo en segundos
+    # Obtener el rango visible actual en el eje X (fechas)
     x_min, x_max = ax.get_xlim()
 
     # Convertir x_min y x_max de segundos a pandas.Timestamp
-    # Usamos pd.to_datetime() con `unit='s'` para que pandas interprete correctamente los valores en segundos.
-    x_min = pd.to_datetime(x_min, unit='d', utc=True)  # Convierte segundos a Timestamp UTC
-    x_max = pd.to_datetime(x_max, unit='d', utc=True)  # Convierte segundos a Timestamp UTC
+    x_min = pd.to_datetime(x_min, unit='d', utc=True).tz_convert('America/New_York')
+    x_max = pd.to_datetime(x_max, unit='d', utc=True).tz_convert('America/New_York')
 
-    # Asegurarse de que x_min y x_max tengan la misma zona horaria que las fechas en 'dates' y 'realtime_dates'
-    x_min = x_min.tz_convert('America/New_York')  # Localizar a la zona horaria correcta
-    x_max = x_max.tz_convert('America/New_York')  # Localizar a la zona horaria correcta
+    # Llamar a la función que ajusta los límites de Y basados en el rango visible de fechas
+    new_y_min, new_y_max = adjust_y_limits_for_range(x_min, x_max)
 
-    # Filtrar las fechas visibles dentro del rango x_min, x_max
-    visible_dates = [date for date in dates + realtime_dates if x_min <= date <= x_max]
-
-    # Filtrar los precios correspondientes a las fechas visibles
-    visible_prices = []
-    for date, price in zip(dates + realtime_dates, prices + realtime_prices):
-        # Solo agregar los precios correspondientes a las fechas visibles
-        if date in visible_dates:
-            visible_prices.append(price)
-
-    # Si hay precios visibles, ajustamos los límites de Y
-    if visible_prices:
-        margin = 0.05
-
-        new_y_min = min(visible_prices)  # Valor mínimo
-        new_y_max = max(visible_prices)  # Valor máximo
-
-        new_y_min = new_y_min - (new_y_max - new_y_min) * margin
-        new_y_max = new_y_max + (new_y_max - new_y_min) * margin
-
-        # Ajustar los límites del eje Y (añadimos un pequeño margen)
-        ax.set_ylim(new_y_min , new_y_max )
-
-        # Actualizar la vista del gráfico
+    # Si se devuelven límites válidos, ajustarlos
+    if new_y_min is not None and new_y_max is not None:
+        ax.set_ylim(new_y_min, new_y_max)
         fig.canvas.draw()
-
 
 
 # Función de animación para actualizar en tiempo real
