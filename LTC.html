@@ -7,43 +7,64 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
   <script>
+    let chart;
+    let labels = [];
+    let precios = [];
+
     // Función para obtener datos de la API de Binance
     async function obtenerDatos() {
-      // Calculamos la fecha de hace 2 días (en milisegundos)
-      const fechaDosDiasAtras = Date.now() - (2 * 24 * 60 * 60 * 1000);
-      
-      // Endpoint de Binance API para obtener los datos históricos
-      const url = `https://api.binance.com/api/v3/klines?symbol=LTCUSDT&interval=1h&startTime=${fechaDosDiasAtras}`;
+      // Endpoint de Binance API para obtener los datos históricos del último minuto
+      const url = `https://api.binance.com/api/v3/klines?symbol=LTCUSDT&interval=1m&limit=1`;
 
       try {
         // Hacemos la solicitud a la API
         const response = await fetch(url);
         const datos = await response.json();
 
-        // Preparamos los datos para graficar
-        const labels = [];
-        const precios = [];
+        // Extraemos el timestamp y el precio de cierre de la última vela
+        const fecha = new Date(datos[0][0]);
+        const precio = parseFloat(datos[0][4]); // El precio de cierre está en la posición 4
 
-        // Extraemos el timestamp y el precio de cierre de cada vela
-        datos.forEach(dato => {
-          const fecha = new Date(dato[0]);
-          const precio = parseFloat(dato[4]); // El precio de cierre está en la posición 4
+        // Añadimos los nuevos datos a los arrays
+        labels.push(fecha.toLocaleTimeString()); // Formateamos la fecha
+        precios.push(precio); // Precio de cierre
 
-          labels.push(fecha.toLocaleString()); // Formateamos la fecha
-          precios.push(precio); // Precio de cierre
-        });
+        // Limitar el número de puntos mostrados en la gráfica (por ejemplo, solo mostrar 60 minutos)
+        if (labels.length > 60) {
+          labels.shift(); // Eliminar el primer elemento (más antiguo)
+          precios.shift(); // Eliminar el precio más antiguo
+        }
 
-        // Crear la gráfica con Chart.js
-        crearGrafica(labels, precios);
+        // Actualizamos la gráfica con los nuevos datos
+        actualizarGrafica();
+
+        // Actualizamos el valor actual en el texto
+        actualizarValorActual(precio);
+
       } catch (error) {
         console.error("Error al obtener los datos:", error);
       }
     }
 
+    // Función para actualizar la gráfica en tiempo real
+    function actualizarGrafica() {
+      if (chart) {
+        chart.data.labels = labels;   // Actualizamos las etiquetas (fechas)
+        chart.data.datasets[0].data = precios;    // Actualizamos los precios
+        chart.update();  // Redibujamos la gráfica
+      }
+    }
+
+    // Función para actualizar el indicador del valor actual del precio
+    function actualizarValorActual(precio) {
+      const valorElemento = document.getElementById('valorActual');
+      valorElemento.textContent = `Precio actual de LTC/USDT: $${precio.toFixed(2)}`; // Actualiza el valor mostrado
+    }
+
     // Función para crear la gráfica con Chart.js
-    function crearGrafica(labels, precios) {
+    function crearGrafica() {
       const ctx = document.getElementById('graficaLTC').getContext('2d');
-      new Chart(ctx, {
+      chart = new Chart(ctx, {
         type: 'line',  // Tipo de gráfica: línea
         data: {
           labels: labels,   // Etiquetas del eje X (fechas)
@@ -74,12 +95,20 @@
       });
     }
 
-    // Ejecutamos la función para obtener los datos al cargar la página
-    window.onload = obtenerDatos;
+    // Ejecutar la función para obtener los datos y crear la gráfica al cargar la página
+    window.onload = () => {
+      crearGrafica();  // Crear la gráfica inicialmente
+      obtenerDatos();  // Obtener los datos iniciales
+      setInterval(obtenerDatos, 1000);  // Actualizar los datos cada 1 segundo
+    };
   </script>
 </head>
 <body>
-  <h1>Gráfico en tiempo real del precio de LTC/USDT (últimos 2 días)</h1>
+  <h1>Gráfico en tiempo real del precio de LTC/USDT (últimos 60 minutos)</h1>
+  
+  <!-- Contenedor para mostrar el valor actual -->
+  <div id="valorActual" style="font-size: 24px; margin: 20px;"></div>
+
   <canvas id="graficaLTC" width="800" height="400"></canvas>
 </body>
 </html>
