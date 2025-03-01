@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gráfica en tiempo real de LTC/USDT</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+  <script>
+    // Función para obtener datos de la API de Binance
+    async function obtenerDatos() {
+      // Calculamos la fecha de hace 2 días (en milisegundos)
+      const fechaDosDiasAtras = Date.now() - (2 * 24 * 60 * 60 * 1000);
+      
+      // Endpoint de Binance API para obtener los datos históricos
+      const url = `https://api.binance.com/api/v3/klines?symbol=LTCUSDT&interval=1h&startTime=${fechaDosDiasAtras}`;
+
+      try {
+        // Hacemos la solicitud a la API
+        const response = await fetch(url);
+        const datos = await response.json();
+
+        // Preparamos los datos para graficar
+        const labels = [];
+        const precios = [];
+
+        // Extraemos el timestamp y el precio de cierre de cada vela
+        datos.forEach(dato => {
+          const fecha = new Date(dato[0]);
+          const precio = parseFloat(dato[4]); // El precio de cierre está en la posición 4
+
+          labels.push(fecha.toLocaleString()); // Formateamos la fecha
+          precios.push(precio); // Precio de cierre
+        });
+
+        // Crear la gráfica con Chart.js
+        crearGrafica(labels, precios);
+      } catch (error) {
+        console.error("Error al obtener los datos:", error);
+      }
+    }
+
+    // Función para crear la gráfica con Chart.js
+    function crearGrafica(labels, precios) {
+      const ctx = document.getElementById('graficaLTC').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',  // Tipo de gráfica: línea
+        data: {
+          labels: labels,   // Etiquetas del eje X (fechas)
+          datasets: [{
+            label: 'Precio LTC/USDT',
+            data: precios,    // Precios del eje Y
+            borderColor: 'rgba(75, 192, 192, 1)',  // Color de la línea
+            backgroundColor: 'rgba(75, 192, 192, 0.2)', // Color del área bajo la línea
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              type: 'category',
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 10
+              }
+            },
+            y: {
+              beginAtZero: false
+            }
+          }
+        }
+      });
+    }
+
+    // Ejecutamos la función para obtener los datos al cargar la página
+    window.onload = obtenerDatos;
+  </script>
+</head>
+<body>
+  <h1>Gráfico en tiempo real del precio de LTC/USDT (últimos 2 días)</h1>
+  <canvas id="graficaLTC" width="800" height="400"></canvas>
+</body>
+</html>
