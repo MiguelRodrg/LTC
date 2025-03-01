@@ -10,6 +10,7 @@
     let chart;
     let labels = [];
     let precios = [];
+    let intervaloActualizar;
 
     // Función para obtener datos de la API de Binance (últimas 2 horas)
     async function obtenerDatos() {
@@ -41,8 +42,8 @@
         // Creamos la gráfica inicial con los datos obtenidos
         crearGrafica();
         
-        // Actualizamos la gráfica en tiempo real cada segundo
-        setInterval(obtenerNuevoPrecio, 1000);
+        // Empezamos a actualizar la gráfica en tiempo real cada 2 segundos
+        intervaloActualizar = setInterval(obtenerNuevoPrecio, 2000);
 
       } catch (error) {
         console.error("Error al obtener los datos:", error);
