@@ -11,43 +11,79 @@
     let labels = [];
     let precios = [];
 
-    // Función para obtener datos de la API de Binance
+    // Función para obtener datos de la API de Binance (últimas 2 horas)
     async function obtenerDatos() {
-      // Endpoint de Binance API para obtener los datos históricos del último minuto
-      const url = `https://api.binance.com/api/v3/klines?symbol=LTCUSDT&interval=1m&limit=1`;
+      const fechaDosHorasAtras = Date.now() - (2 * 60 * 60 * 1000); // Fecha de hace 2 horas
+      const url = `https://api.binance.com/api/v3/klines?symbol=LTCUSDT&interval=1m&startTime=${fechaDosHorasAtras}`;
 
       try {
         // Hacemos la solicitud a la API
         const response = await fetch(url);
         const datos = await response.json();
 
-        // Extraemos el timestamp y el precio de cierre de la última vela
-        const fecha = new Date(datos[0][0]);
-        const precio = parseFloat(datos[0][4]); // El precio de cierre está en la posición 4
+        // Preparamos los datos de las últimas 2 horas
+        const nuevosLabels = [];
+        const nuevosPrecios = [];
 
-        // Añadimos los nuevos datos a los arrays
-        labels.push(fecha.toLocaleTimeString()); // Formateamos la fecha
-        precios.push(precio); // Precio de cierre
+        // Extraemos los datos para las últimas 2 horas
+        datos.forEach(dato => {
+          const fecha = new Date(dato[0]);
+          const precio = parseFloat(dato[4]); // El precio de cierre está en la posición 4
 
-        // Limitar el número de puntos mostrados en la gráfica (por ejemplo, solo mostrar 60 minutos)
-        if (labels.length > 60) {
-          labels.shift(); // Eliminar el primer elemento (más antiguo)
-          precios.shift(); // Eliminar el precio más antiguo
-        }
+          nuevosLabels.push(fecha.toLocaleTimeString()); // Formateamos la fecha
+          nuevosPrecios.push(precio); // Precio de cierre
+        });
 
-        // Actualizamos la gráfica con los nuevos datos
-        actualizarGrafica();
+        // Añadimos los datos de las últimas 2 horas a los arrays globales
+        labels = nuevosLabels;
+        precios = nuevosPrecios;
 
-        // Actualizamos el valor actual en el texto
-        actualizarValorActual(precio);
+        // Creamos la gráfica inicial con los datos obtenidos
+        crearGrafica();
+        
+        // Actualizamos la gráfica en tiempo real cada segundo
+        setInterval(obtenerNuevoPrecio, 1000);
 
       } catch (error) {
         console.error("Error al obtener los datos:", error);
       }
     }
 
+    // Función para obtener el último precio y actualizar la gráfica en tiempo real
+    async function obtenerNuevoPrecio() {
+      const url = `https://api.binance.com/api/v3/klines?symbol=LTCUSDT&interval=1m&limit=1`;
+
+      try {
+        const response = await fetch(url);
+        const datos = await response.json();
+        
+        // Extraemos el timestamp y el precio de cierre de la última vela
+        const fecha = new Date(datos[0][0]);
+        const precio = parseFloat(datos[0][4]); // El precio de cierre está en la posición 4
+
+        // Añadimos el nuevo dato (más reciente)
+        labels.push(fecha.toLocaleTimeString());
+        precios.push(precio);
+
+        // Limitar el número de puntos mostrados en la gráfica (últimos 60 minutos)
+        if (labels.length > 60) {
+          labels.shift(); // Eliminar el primer elemento (más antiguo)
+          precios.shift(); // Eliminar el precio más antiguo
+        }
+
+        // Actualizamos la gráfica con los nuevos datos
+        actualizarGrafica(precio);
+
+        // Actualizamos el valor actual en el texto
+        actualizarValorActual(precio);
+
+      } catch (error) {
+        console.error("Error al obtener el último precio:", error);
+      }
+    }
+
     // Función para actualizar la gráfica en tiempo real
-    function actualizarGrafica() {
+    function actualizarGrafica(precio) {
       if (chart) {
         chart.data.labels = labels;   // Actualizamos las etiquetas (fechas)
         chart.data.datasets[0].data = precios;    // Actualizamos los precios
@@ -95,16 +131,12 @@
       });
     }
 
-    // Ejecutar la función para obtener los datos y crear la gráfica al cargar la página
-    window.onload = () => {
-      crearGrafica();  // Crear la gráfica inicialmente
-      obtenerDatos();  // Obtener los datos iniciales
-      setInterval(obtenerDatos, 1000);  // Actualizar los datos cada 1 segundo
-    };
+    // Ejecutar la función para obtener los datos al cargar la página
+    window.onload = obtenerDatos;  // Obtener los datos iniciales (últimas 2 horas)
   </script>
 </head>
 <body>
-  <h1>Gráfico en tiempo real del precio de LTC/USDT (últimos 60 minutos)</h1>
+  <h1>Gráfico en tiempo real del precio de LTC/USDT (últimas 2 horas)</h1>
   
   <!-- Contenedor para mostrar el valor actual -->
   <div id="valorActual" style="font-size: 24px; margin: 20px;"></div>
